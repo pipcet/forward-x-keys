@@ -82,7 +82,7 @@ static void grabxkey(Display *d, Window w, unsigned int modifiers, const char *s
   }
   XtKeysymToKeycodeList(d, keysym, &keycodes, &nkeycodes);
   for (i=0; i<nkeycodes; i++) {
-    XGrabKey(d, keycodes[i], 0, w, False, GrabModeAsync, GrabModeAsync);
+    XGrabKey(d, keycodes[i], modifiers, w, False, GrabModeAsync, GrabModeAsync);
   }
 }
 
