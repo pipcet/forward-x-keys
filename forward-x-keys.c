@@ -92,6 +92,12 @@ enum state {
   magic_key_held,
 };
 
+enum discard {
+  discard_never,
+  discard_modifier,
+  discard_always,
+};
+
 static void reverse_array(Window *array, size_t n)
 {
   size_t i;
@@ -110,13 +116,14 @@ int main(int argc, char **argv)
   Window dummy;
   int dummy_int;
   char **arg;
-  XEvent ev;
+  XEvent ev, trigger_event;
   Window fw;
   int revert_to;
   unsigned trigger_keycode;
   Window *stacking_order = NULL;
   unsigned stacking_order_n = 0;
   enum state state = forward_some_keys;
+  enum discard discard = discard_never;
   unsigned int modifiers;
 
   if (argc < 3) {
@@ -140,7 +147,21 @@ int main(int argc, char **argv)
 
   XQueryPointer(d, rw, &dummy, &dummy, &dummy_int, &dummy_int, &dummy_int, &dummy_int, &modifiers);
 
-  for (arg = argv+3; *arg; arg++)
+  arg = argv+3;
+
+  if (strcmp(arg[0], "--discard=always") == 0) {
+    discard = discard_always;
+    arg++;
+  } else if (strcmp(arg[0], "--discard=modifier") == 0) {
+    discard = discard_modifier;
+    arg++;
+  } else if (strcmp(arg[0], "--discard=never") == 0) {
+    /* for completeness, this is the default behaviour */
+    discard = discard_never;
+    arg++;
+  };
+
+  for (; *arg; arg++)
     grabxkey(d, rw, modifiers, *arg);
 
 #if 0 /* there's no good way to know when to terminate, so don't daemonize for now */
@@ -203,6 +224,12 @@ int main(int argc, char **argv)
         XRaiseWindow(d, w);
         XGetInputFocus(d, &fw, &revert_to);
         XSetInputFocus(d, sw, RevertToNone, CurrentTime);
+        if (discard == discard_always)
+          do_send = 0;
+        else if (discard == discard_modifier) {
+          trigger_event = ev;
+          do_send = 0;
+        }
       } else {
         do_send = 0;
       }
@@ -217,6 +244,11 @@ int main(int argc, char **argv)
         }
       } else {
         if (ev.xkey.keycode == trigger_keycode) {
+          if (discard == discard_always) {
+            do_send = 0;
+          } else if (discard == discard_modifier) {
+            XSendEvent(d, w, True, KeyPressMask|KeyReleaseMask, &trigger_event);
+          }
           XUngrabKeyboard(d, CurrentTime);
           state = forward_some_keys;
         } else {
